@@ -22,7 +22,7 @@
 
 ```bash
 # 1. 添加市场
-/plugin marketplace add quanru/claude-code-boomerang
+/plugin marketplace add song-fangzhen/claude-code-boomerang
 
 # 2. 安装插件
 /plugin install claude-code-boomerang
