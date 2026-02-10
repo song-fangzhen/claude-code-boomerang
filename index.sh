@@ -2,6 +2,9 @@
 # Claude Code notification helper script
 # Uses $CLAUDE_PROJECT_DIR environment variable (set by Claude Code hooks)
 
+# Unconditional trace log
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] ENTRY: args=$* TERM_PROGRAM=$TERM_PROGRAM BUNDLE=$__CFBundleIdentifier TERM_PRODUCT=$TERM_PRODUCT" >> /tmp/boomerang_trace.log
+
 # Hook type from first argument
 hook_type="$1"
 
@@ -198,6 +201,57 @@ case "$hook_type" in
 esac
 
 debug_log "Generated message: $msg, sound: $sound"
+
+# ============== 飞书推送 ==============
+# 必须通过环境变量 CLAUDE_FEISHU_WEBHOOK 配置 Webhook URL，未配置则跳过飞书通知
+FEISHU_WEBHOOK="${CLAUDE_FEISHU_WEBHOOK:-}"
+
+send_feishu_notification() {
+  if [ -z "$FEISHU_WEBHOOK" ]; then
+    debug_log "SKIPPED: Feishu notification - CLAUDE_FEISHU_WEBHOOK not configured"
+    return 0
+  fi
+
+  local timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+  local current_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+
+  # 根据 hook_type 选择卡片颜色
+  local template_color="blue"
+  case "$hook_type" in
+    Stop)        template_color="green" ;;
+    PreToolUse)  template_color="orange" ;;
+    Notification) template_color="blue" ;;
+    *)           template_color="grey" ;;
+  esac
+
+  curl -s -X POST "$FEISHU_WEBHOOK" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"msg_type\": \"interactive\",
+      \"card\": {
+        \"header\": {
+          \"title\": {
+            \"tag\": \"plain_text\",
+            \"content\": \"Claude Code - ${project_name}\"
+          },
+          \"template\": \"${template_color}\"
+        },
+        \"elements\": [
+          {
+            \"tag\": \"div\",
+            \"text\": {
+              \"tag\": \"lark_md\",
+              \"content\": \"**状态**: ${msg}\n**类型**: ${hook_type}\n**项目**: ${project_name}\n**目录**: ${current_dir}\n**时间**: ${timestamp}\"
+            }
+          }
+        ]
+      }
+    }" > /dev/null 2>&1
+}
+
+# 后台发送飞书通知（不阻塞桌面通知）
+send_feishu_notification &
+debug_log "Feishu notification sent in background"
 
 # Run alerter in background with nohup so it survives parent process termination
 nohup bash -c "

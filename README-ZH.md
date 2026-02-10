@@ -14,6 +14,7 @@
 - ✅ 每个项目只显示一个通知
 - ✅ 零依赖（macOS 原生 + alerter）
 - ✅ 支持多种 hook 类型：计划就绪、提问、任务完成、子任务完成
+- ✅ 飞书 Webhook 消息推送，随时随地掌握任务动态
 
 ## 快速安装
 
@@ -81,8 +82,28 @@
 - `CLAUDE_NOTIFY_SOUND_PLAN`: Plan Ready 提示音（默认：`"Hero"`）
 - `CLAUDE_NOTIFY_SOUND_QUESTION`: Question/Notification 提示音（默认：`"Glass"`）
 - `CLAUDE_NOTIFY_SOUND_COMPLETE`: Task Completed 提示音（默认：`"Ping"`）
+- `CLAUDE_FEISHU_WEBHOOK`: 飞书机器人 Webhook URL，用于消息推送（未配置则不启用）
 
 **可用声音**: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Purr, Sosumi, Submarine, Tink
+
+### 飞书通知
+
+如需通过飞书接收通知，先在飞书群中添加自定义机器人获取 Webhook URL，然后配置：
+
+```json
+{
+  "env": {
+    "CLAUDE_FEISHU_WEBHOOK": "https://open.feishu.cn/open-apis/bot/v2/hook/你的webhook-id"
+  }
+}
+```
+
+飞书通知包含以下信息：
+- 任务状态（带 emoji 标识）
+- Hook 类型（Stop / PreToolUse / Notification）
+- 项目名称和目录路径
+- 时间戳
+- 卡片颜色区分：🟢 绿色=任务完成、🟠 橙色=交互工具、🔵 蓝色=通知提示
 
 ## 卸载
 

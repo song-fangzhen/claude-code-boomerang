@@ -14,6 +14,7 @@
 - ✅ Only one notification per project
 - ✅ Zero dependencies (macOS native + alerter)
 - ✅ Support multiple hook types: Plan Ready, Questions, Task Complete, Subagent Complete
+- ✅ Feishu (Lark) webhook notifications for remote awareness
 
 ## Quick Install
 
@@ -81,8 +82,28 @@ Configure the plugin in `~/.claude/settings.json`:
 - `CLAUDE_NOTIFY_SOUND_PLAN`: Plan Ready sound (default: `"Hero"`)
 - `CLAUDE_NOTIFY_SOUND_QUESTION`: Question/Notification sound (default: `"Glass"`)
 - `CLAUDE_NOTIFY_SOUND_COMPLETE`: Task Completed sound (default: `"Ping"`)
+- `CLAUDE_FEISHU_WEBHOOK`: Feishu (Lark) bot webhook URL for push notifications (disabled if not set)
 
 **Available sounds**: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Purr, Sosumi, Submarine, Tink
+
+### Feishu (Lark) Notifications
+
+To receive notifications via Feishu, add a custom bot webhook URL in your group chat, then configure it:
+
+```json
+{
+  "env": {
+    "CLAUDE_FEISHU_WEBHOOK": "https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook-id"
+  }
+}
+```
+
+Feishu notifications include:
+- Task status with emoji indicators
+- Hook type (Stop / PreToolUse / Notification)
+- Project name and directory
+- Timestamp
+- Color-coded cards: 🟢 green for task complete, 🟠 orange for interactive tools, 🔵 blue for notifications
 
 ## Uninstall
 
