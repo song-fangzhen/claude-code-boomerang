@@ -19,6 +19,12 @@ detect_ide_scheme() {
 
   # Match bundle identifier patterns
   case "$bundle_id" in
+    cn.trae.*)
+      echo "trae-cn://file"
+      ;;
+    *trae*)
+      echo "trae://file"
+      ;;
     *vscode*)
       echo "vscode://file"
       ;;
@@ -104,13 +110,22 @@ fi
 # Auto-release lock after 2 seconds
 (sleep 2 && rmdir "$lock_path" 2>/dev/null) &
 
-# 检测是否在 VSCode 终端中执行
-if [ "$TERM_PROGRAM" != "vscode" ]; then
-  debug_log "SKIPPED: Not running in VSCode terminal (TERM_PROGRAM=$TERM_PROGRAM)"
+# 检测是否在 VSCode/Trae/Cursor 终端中执行
+is_ide_terminal="false"
+if [ "$TERM_PROGRAM" = "vscode" ] || [ "$TERM_PROGRAM" = "trae" ]; then
+  is_ide_terminal="true"
+elif [[ "$__CFBundleIdentifier" == *trae* ]]; then
+  is_ide_terminal="true"
+elif [ "$TERM_PRODUCT" = "Trae" ]; then
+  is_ide_terminal="true"
+fi
+
+if [ "$is_ide_terminal" = "false" ]; then
+  debug_log "SKIPPED: Not running in IDE terminal (TERM_PROGRAM=$TERM_PROGRAM, BUNDLE=$__CFBundleIdentifier, TERM_PRODUCT=$TERM_PRODUCT)"
   exit 0
 fi
 
-debug_log "Running in VSCode terminal, proceeding with notification"
+debug_log "Running in IDE terminal (TERM_PROGRAM=$TERM_PROGRAM, BUNDLE=$__CFBundleIdentifier, TERM_PRODUCT=$TERM_PRODUCT)"
 
 # Read JSON from stdin
 json=$(cat)
@@ -142,8 +157,9 @@ bundle_id="${front_app_info##*|}"
 debug_log "current_app: $current_app, bundle_id: $bundle_id"
 
 # Check if already in target window (notification will auto-dismiss)
+# Match project name OR project dir components against window title
 in_target_window="false"
-if [ "$bundle_id" = "com.microsoft.VSCode" ]; then
+if [ "$bundle_id" = "com.microsoft.VSCode" ] || [[ "$bundle_id" == *trae* ]]; then
   window_title=$(osascript -e "tell application \"System Events\" to get name of first window of application process \"$current_app\"" 2>/dev/null)
   debug_log "window_title: $window_title"
   if [[ "$window_title" == *"$project_name"* ]]; then
@@ -191,7 +207,6 @@ nohup bash -c "
   debug_enabled=\"$CLAUDE_NOTIFY_DEBUG\"
   ide_scheme=\"$ide_scheme\"
   sound=\"$sound\"
-  in_target_window=\"$in_target_window\"
 
   # Conditional logging function
   debug_log() {
@@ -210,14 +225,68 @@ nohup bash -c "
     fi
   fi
 
-  # Show notification using alerter with project name in title
-  # If already in target window, auto-dismiss after 5 seconds; otherwise persist
-  if [ \"\$in_target_window\" = \"true\" ]; then
-    notify_timeout=5
+  # Detect target IDE bundle ID from scheme
+  if [[ \"\$ide_scheme\" == trae-cn* ]]; then
+    target_bundle=\"cn.trae.app\"
+  elif [[ \"\$ide_scheme\" == trae* ]]; then
+    target_bundle=\"com.trae.app\"
+  elif [[ \"\$ide_scheme\" == cursor* ]]; then
+    target_bundle=\"com.todesktop.230313mzl4w4u92\"
   else
-    notify_timeout=0
+    target_bundle=\"com.microsoft.VSCode\"
   fi
-  click_result=\$(\"\${plugin_root}/alerter\" -group \"$project_name\" -title \"Claude Code - $project_name\" -message \"$msg\" -actions \"Open\" -closeLabel \"Dismiss\" -timeout \$notify_timeout -contentImage \"\${plugin_root}/icon.png\" 2>/dev/null)
+
+  # Helper: check if target IDE with matching project window is frontmost
+  check_in_target() {
+    local fb=\$(osascript -e 'tell application \"System Events\" to get bundle identifier of first application process whose frontmost is true' 2>/dev/null)
+    if [ \"\$fb\" != \"\$target_bundle\" ]; then
+      return 1
+    fi
+    local titles=\$(osascript -e \"
+      tell application \\\"System Events\\\"
+        set procs to every application process whose bundle identifier is \\\"\$target_bundle\\\"
+        set output to \\\"\\\"
+        repeat with p in procs
+          try
+            repeat with w in every window of p
+              set output to output & name of w & (ASCII character 10)
+            end repeat
+          end try
+        end repeat
+        return output
+      end tell
+    \" 2>/dev/null)
+    echo \"\$titles\" | grep -q \"\$(basename \"\$project_dir\")\"
+  }
+
+  # Launch alerter (always persistent), capture output via temp file
+  alerter_out=\$(mktemp)
+  \"\${plugin_root}/alerter\" -group \"$project_name\" -title \"Claude Code - $project_name\" -message \"$msg\" -actions \"Open\" -closeLabel \"Dismiss\" -timeout 0 -contentImage \"\${plugin_root}/icon.png\" > \"\$alerter_out\" 2>/dev/null &
+  alerter_pid=\$!
+  debug_log \"Alerter launched with PID \$alerter_pid\"
+
+  # Background monitor: poll every 2s, auto-dismiss 5s after user returns to target window
+  (
+    while kill -0 \$alerter_pid 2>/dev/null; do
+      sleep 2
+      if check_in_target; then
+        debug_log \"Monitor: user in target window, starting 5s countdown\"
+        sleep 5
+        if check_in_target && kill -0 \$alerter_pid 2>/dev/null; then
+          debug_log \"Monitor: still in target after 5s, dismissing notification\"
+          kill \$alerter_pid 2>/dev/null
+        fi
+      fi
+    done
+  ) &
+  monitor_pid=\$!
+
+  # Wait for alerter to finish (user click, dismiss, or killed by monitor)
+  wait \$alerter_pid 2>/dev/null
+  kill \$monitor_pid 2>/dev/null
+  wait \$monitor_pid 2>/dev/null
+  click_result=\$(cat \"\$alerter_out\" 2>/dev/null)
+  rm -f \"\$alerter_out\"
 
   # Debug logging
   debug_log \"Click result: [\$click_result]\"
@@ -235,15 +304,27 @@ nohup bash -c "
       fi
       debug_log \"Opening: \$ide_url\"
 
-      # Smart VS Code window activation: prefer existing windows over opening new ones
+      # Smart IDE window activation: prefer existing windows over opening new ones
       # Priority: exact match > parent directory match > new window
+      # Determine target app bundle ID pattern based on IDE scheme
+      if [[ \"\$ide_scheme\" == trae-cn* ]]; then
+        app_bundle=\"cn.trae.app\"
+      elif [[ \"\$ide_scheme\" == trae* ]]; then
+        app_bundle=\"com.trae.app\"
+      elif [[ \"\$ide_scheme\" == cursor* ]]; then
+        app_bundle=\"com.todesktop.230313mzl4w4u92\"
+      else
+        app_bundle=\"com.microsoft.VSCode\"
+      fi
+      debug_log \"App bundle for window search: \$app_bundle\"
+
       project_basename=\$(basename \"\$project_dir\")
       activated=\$(osascript -e \"
         tell application \\\"System Events\\\"
-          set vscodeProcs to (application processes whose name contains \\\"Code\\\")
-          if (count of vscodeProcs) > 0 then
-            set vscodeProc to item 1 of vscodeProcs
-            tell application process (name of vscodeProc)
+          set ideProcs to (application processes whose bundle identifier is \\\"\$app_bundle\\\")
+          if (count of ideProcs) > 0 then
+            set ideProc to item 1 of ideProcs
+            tell application process (name of ideProc)
               set frontmost to true
               set exactMatch to missing value
               set parentMatch to missing value
@@ -279,9 +360,10 @@ nohup bash -c "
 
       debug_log \"Window activation result: \$activated\"
 
-      # Only activate existing windows, do not open new ones
+      # Only use URL scheme when no matching window found
       if [[ \"\$activated\" != activated:* ]]; then
-        debug_log \"No matching window found, skipping (window may have been closed)\"
+        debug_log \"No matching window, opening new: \$ide_url\"
+        open \"\$ide_url\"
       fi
       debug_log \"open command completed\"
     else

@@ -2,12 +2,12 @@
 
 [简体中文](./README-ZH.md) | English
 
-> Get desktop notifications when Claude Code tasks complete. Click to jump to your VS Code window.
+> Get desktop notifications when Claude Code tasks complete. Click to jump to your IDE window.
 
 ## Features
 
-- ✅ Persistent notifications (auto-dismiss after 5s when already in target window)
-- ✅ Click to jump to your IDE workspace (VS Code, Cursor, WebStorm, IntelliJ, PyCharm, GoLand)
+- ✅ Persistent notifications with smart auto-dismiss (continuously monitors; auto-dismiss 5s after user returns to target project window)
+- ✅ Click to jump to your IDE workspace (VS Code, Cursor, Trae, Trae CN, WebStorm, IntelliJ, PyCharm, GoLand)
 - ✅ Smart window activation: prefer existing windows, supports parent directory matching
 - ✅ Auto-detect IDE from environment
 - ✅ Different notification sounds for different events
@@ -35,16 +35,18 @@ That's it! The plugin will automatically set up all required hooks.
 
 The plugin automatically detects your IDE and opens the correct workspace when you click the notification:
 
-| IDE | Auto-detected | URL Scheme |
-|-----|--------------|------------|
-| VS Code | ✅ | `vscode://file` |
-| Cursor | ✅ | `cursor://file` |
-| WebStorm | ✅ | `webstorm://open?file=` |
-| IntelliJ IDEA | ✅ | `idea://open?file=` |
-| PyCharm | ✅ | `pycharm://open?file=` |
-| GoLand | ✅ | `goland://open?file=` |
+| IDE | Auto-detected | URL Scheme | Bundle ID Pattern |
+|-----|--------------|------------|-------------------|
+| Trae CN | ✅ | `trae-cn://file` | `cn.trae.*` |
+| Trae | ✅ | `trae://file` | `*trae*` |
+| VS Code | ✅ | `vscode://file` | `*vscode*` |
+| Cursor | ✅ | `cursor://file` | `*todesktop*` |
+| WebStorm | ✅ | `webstorm://open?file=` | `*webstorm*` |
+| IntelliJ IDEA | ✅ | `idea://open?file=` | `*intellij*` |
+| PyCharm | ✅ | `pycharm://open?file=` | `*pycharm*` |
+| GoLand | ✅ | `goland://open?file=` | `*goland*` |
 
-Detection is based on the `__CFBundleIdentifier` environment variable.
+Detection is based on the `__CFBundleIdentifier` environment variable. For Trae/Trae CN, the plugin also checks `TERM_PRODUCT` as a fallback since `TERM_PROGRAM` may be empty.
 
 ## Supported Hooks
 

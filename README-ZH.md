@@ -2,12 +2,12 @@
 
 简体中文 | [English](./README.md)
 
-> 当 Claude Code 任务完成时接收桌面通知，点击即可跳转到 VS Code 窗口。
+> 当 Claude Code 任务完成时接收桌面通知，点击即可跳转到 IDE 窗口。
 
 ## 功能特性
 
-- ✅ 常驻通知，不会自动消失（已在目标窗口时 5 秒后自动消失）
-- ✅ 点击通知跳转到你的 IDE 工作区（支持 VS Code、Cursor、WebStorm、IntelliJ、PyCharm、GoLand）
+- ✅ 常驻通知，智能自动消失（持续监控前台窗口，切回目标项目窗口 5 秒后自动消失）
+- ✅ 点击通知跳转到你的 IDE 工作区（支持 VS Code、Cursor、Trae、Trae CN、WebStorm、IntelliJ、PyCharm、GoLand）
 - ✅ 智能窗口激活：优先激活已存在的窗口，支持父目录匹配
 - ✅ 自动检测 IDE 类型
 - ✅ 不同事件使用不同的提示音
@@ -35,16 +35,18 @@
 
 插件会自动检测你的 IDE，点击通知时打开正确的工作区：
 
-| IDE | 自动检测 | URL Scheme |
-|-----|---------|------------|
-| VS Code | ✅ | `vscode://file` |
-| Cursor | ✅ | `cursor://file` |
-| WebStorm | ✅ | `webstorm://open?file=` |
-| IntelliJ IDEA | ✅ | `idea://open?file=` |
-| PyCharm | ✅ | `pycharm://open?file=` |
-| GoLand | ✅ | `goland://open?file=` |
+| IDE | 自动检测 | URL Scheme | Bundle ID 匹配 |
+|-----|---------|------------|----------------|
+| Trae CN | ✅ | `trae-cn://file` | `cn.trae.*` |
+| Trae | ✅ | `trae://file` | `*trae*` |
+| VS Code | ✅ | `vscode://file` | `*vscode*` |
+| Cursor | ✅ | `cursor://file` | `*todesktop*` |
+| WebStorm | ✅ | `webstorm://open?file=` | `*webstorm*` |
+| IntelliJ IDEA | ✅ | `idea://open?file=` | `*intellij*` |
+| PyCharm | ✅ | `pycharm://open?file=` | `*pycharm*` |
+| GoLand | ✅ | `goland://open?file=` | `*goland*` |
 
-检测基于 `__CFBundleIdentifier` 环境变量。
+检测基于 `__CFBundleIdentifier` 环境变量。对于 Trae/Trae CN，插件还会检查 `TERM_PRODUCT` 作为备选（因为 Trae 的 `TERM_PROGRAM` 可能为空）。
 
 ## 支持的 Hooks
 
